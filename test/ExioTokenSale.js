@@ -35,6 +35,8 @@ contract('ExioTokenSale', function(accounts) {
       tokenSaleInstance = instance;
       return tokenInstance.transfer(tokenSaleInstance.address, tokensAvailable, { from: admin });
     }).then(function(receipt) {
+      return tokenSaleInstance.openSale(100000, {from: admin});
+    }).then(function() {
       numberOfTokens = 10;
       return tokenSaleInstance.buyTokens(numberOfTokens, { from: buyer, value: numberOfTokens * tokenPrice });
     }).then(function(receipt) {
@@ -58,6 +60,62 @@ contract('ExioTokenSale', function(accounts) {
       return tokenSaleInstance.buyTokens(600000, { from: buyer, value: numberOfTokens * tokenPrice });
     }).then(assert.fail).catch(function(error) {
       assert(error.message.toString().indexOf('revert') >= 0, 'cannot purchase more tokens than available');
+      return tokenSaleInstance.closeSale();
+    }).then(function() {
+
+    });
+  });
+
+  it('Open token sale', function() {
+    return ExioToken.deployed().then(function(instance) {
+      tokenInstance = instance;
+      return ExioTokenSale.deployed();
+    }).then(function(instance) {
+      tokenSaleInstance = instance;
+      // Try to open sale from account other than the admin
+      return tokenSaleInstance.openSale(100000, { from: buyer });
+    }).then(assert.fail).catch(function(error) {
+      assert(error.message.toString().indexOf('revert') >= 0, 'only admin can open sale');
+      return tokenSaleInstance.openSale(1000000, { from: admin});
+    }).then(assert.fail).catch(function(error) {
+      assert(error.message.toString().indexOf('revert') >= 0, 'note has enough exio token to sell');
+      return tokenSaleInstance.openSale(100000, { from: admin });
+    }).then(function(receipt) {
+      assert.equal(receipt.logs.length, 1, 'triggers one event');
+      assert.equal(receipt.logs[0].event, 'openSell', 'should be the "openSell" event');
+      assert.equal(receipt.logs[0].args._admin, admin, 'logs the account the purchased the tokens');
+      assert.equal(receipt.logs[0].args._numberOfTokens, 100000, 'logs the number of tokens sold');
+      return tokenInstance.balanceOf(tokenSaleInstance.address);
+    }).then(function(balance) {
+      assert.equal(balance.toNumber(), 499990);
+      return tokenSaleInstance.openSale.call(100000, { from: admin });
+    }).then(assert.fail).catch(function(error) {
+      assert(error.message.toString().indexOf('revert') >= 0, 'sale is already open');
+    });
+  });
+
+  it('Close token sale', function() {
+    return ExioToken.deployed().then(function(instance) {
+      tokenInstance = instance;
+      return ExioTokenSale.deployed();
+    }).then(function(instance) {
+      tokenSaleInstance = instance;
+      // Try to open sale from account other than the admin
+      return tokenSaleInstance.closeSale({ from: buyer });
+    }).then(assert.fail).catch(function(error) {
+      assert(error.message.toString().indexOf('revert') >= 0, 'only admin can close sale');
+      return tokenSaleInstance.closeSale({ from: admin });
+    }).then(function(receipt) {
+      assert.equal(receipt.logs.length, 1, 'triggers one event');
+      assert.equal(receipt.logs[0].event, 'closeSell', 'should be the "closeSell" event');
+      assert.equal(receipt.logs[0].args._admin, admin, 'logs the account the purchased the tokens');
+      // return tokenInstance.balanceOf(tokenSaleInstance.address);
+      return tokenSaleInstance.tokensForSold();
+    }).then(function(balance) {
+      assert.equal(balance.toNumber(), 0);
+      return tokenSaleInstance.closeSale.call({ from: admin });
+    }).then(assert.fail).catch(function(error) {
+      assert(error.message.toString().indexOf('revert') >= 0, 'sale is already close');
     });
   });
 
